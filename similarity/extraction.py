@@ -9,6 +9,7 @@ from model.functional import *
 from spikingjelly.activation_based import functional, neuron
 
 from model.cornet import *
+from model.monkeynet import *
 
 
 class Extraction:

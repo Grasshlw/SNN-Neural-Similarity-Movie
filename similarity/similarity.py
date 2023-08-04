@@ -29,31 +29,24 @@ def build_extraction(args):
     if args.train_dataset == "imagenet":
         if args.model in ['cornet_z', 'cornet_rt', 'cornet_s']:
             T = 1
-            extraction = CNNStaticExtraction(
-                model_name=args.model,
-                checkpoint_path=args.checkpoint_path,
-                stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
-                T=T,
-                device=args.device
-            )
+            extraction_tool = CNNStaticExtraction
         else:
             T = 4
-            extraction = SNNStaticExtraction(
-                model_name=args.model,
-                checkpoint_path=args.checkpoint_path,
-                stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
-                T=T,
-                device=args.device
-            )
+            extraction_tool = SNNStaticExtraction
     elif args.train_dataset == "ucf101":
-        T = 16
-        extraction = SNNMovieExtraction(
-            model_name=args.model,
-            checkpoint_path=args.checkpoint_path,
-            stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
-            T=T,
-            device=args.device
-        )
+        if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc']:
+            T = 5
+            extraction_tool = CNNStaticExtraction
+        else:
+            T = 16
+            extraction_tool = SNNMovieExtraction
+    extraction = extraction_tool(
+        model_name=args.model,
+        checkpoint_path=args.checkpoint_path,
+        stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
+        T=T,
+        device=args.device
+    )
     return extraction, T
 
 
