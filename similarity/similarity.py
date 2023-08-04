@@ -8,7 +8,7 @@ from dataset import NeuralDataset
 from visualmodel import VisualModel
 from metric import TSRSAMetric
 from benchmark import MovieBenchmark
-from extraction import SNNStaticExtraction, SNNMovieExtraction
+from extraction import SNNStaticExtraction, SNNMovieExtraction, CNNStaticExtraction
 
 
 def preset_neural_dataset(args):
@@ -27,14 +27,24 @@ def preset_neural_dataset(args):
 def build_extraction(args):
     stimulus_name = "stimulus_allen_natural_movie_one_224.pt"
     if args.train_dataset == "imagenet":
-        T = 4
-        extraction = SNNStaticExtraction(
-            model_name=args.model,
-            checkpoint_path=args.checkpoint_path,
-            stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
-            T=T,
-            device=args.device
-        )
+        if args.model in ['cornet_z', 'cornet_rt', 'cornet_s']:
+            T = 1
+            extraction = CNNStaticExtraction(
+                model_name=args.model,
+                checkpoint_path=args.checkpoint_path,
+                stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
+                T=T,
+                device=args.device
+            )
+        else:
+            T = 4
+            extraction = SNNStaticExtraction(
+                model_name=args.model,
+                checkpoint_path=args.checkpoint_path,
+                stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
+                T=T,
+                device=args.device
+            )
     elif args.train_dataset == "ucf101":
         T = 16
         extraction = SNNMovieExtraction(

@@ -8,6 +8,8 @@ from model.RecurrentSEWResNet import *
 from model.functional import *
 from spikingjelly.activation_based import functional, neuron
 
+from model.cornet import *
+
 
 class Extraction:
     def __init__(self, model, model_name, stimulus_path, device="cuda:0"):
@@ -158,6 +160,45 @@ class SNNMovieExtraction(Extraction):
                     for i in range(bs):
                         features[i] = self.features[i]
                 extraction[n: n + bs] = features.squeeze(1)
+                n += bs
+            hook.remove()
+
+        return extraction
+
+
+class CNNStaticExtraction(Extraction):
+    def __init__(self, model_name, checkpoint_path, stimulus_path, T=1, device="cuda:0"):
+        model = eval(model_name)(checkpoint_path=checkpoint_path)
+        super().__init__(model, model_name, stimulus_path, device)
+        self.T = T
+    
+    def hook_fn(self, module, inputs, outputs):
+        if isinstance(outputs, tuple):
+            self.features = outputs[0].data.cpu()
+        else:
+            self.features = outputs.data.cpu()
+
+    def layer_extraction(self, layer_name, layer_dims):
+        if self.stimulus_change:
+            self.build_dataloader(self.batch_size * self.T)
+            self.stimulus_change = False
+        extraction = torch.zeros([self.n_stimulus] + layer_dims, dtype=torch.float)
+
+        self.model.eval()
+        with torch.inference_mode():
+            hook = eval(f"self.model.{layer_name}").register_forward_hook(self.hook_fn)
+            n = 0
+            for inputs in tqdm(self.stimulus_dataloader):
+                inputs = inputs[0].to(self.device)
+                bs = len(inputs)
+                if self.T > 1:
+                    inputs = inputs.unsqueeze(0)
+                    inputs = inputs.transpose(1, 2)
+                self.model(inputs)
+                if self.T > 1:
+                    extraction[n: n + bs] = self.features.squeeze(0).transpose(0, 1)
+                else:
+                    extraction[n: n + bs] = self.features
                 n += bs
             hook.remove()
 
