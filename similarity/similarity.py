@@ -8,7 +8,7 @@ from dataset import NeuralDataset
 from visualmodel import VisualModel
 from metric import TSRSAMetric
 from benchmark import MovieBenchmark
-from extraction import SNNStaticExtraction, SNNMovieExtraction, CNNStaticExtraction
+from extraction import SNNStaticExtraction, SNNMovieExtraction, CNNStaticExtraction, CNNMovieExtraction
 
 
 def preset_neural_dataset(args):
@@ -37,6 +37,9 @@ def build_extraction(args):
         if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc']:
             T = 5
             extraction_tool = CNNStaticExtraction
+        elif args.model in ['r_cornet_rt', 'r_resnet18']:
+            T = 16
+            extraction_tool = CNNMovieExtraction
         else:
             T = 16
             extraction_tool = SNNMovieExtraction
