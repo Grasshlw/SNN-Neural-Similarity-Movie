@@ -58,7 +58,10 @@ def save_dir_preset(args):
     if args.shuffle:
         save_dir = os.path.join(save_dir, "stimulus_shuffle")
     if args.replace:
-        save_dir = os.path.join(save_dir, "stimulus_replace")
+        save_dir = os.path.join(save_dir, f"stimulus_replace_{args.replace_type}")
+    if args.shuffle or args.replace:
+        if args.best_layer:
+            save_dir = os.path.join(save_dir, "best_layer")
     
     suffix = ""
     if args.shuffle or args.replace:
@@ -72,7 +75,8 @@ def get_args():
 
     parser = argparse.ArgumentParser(description="Neural Representation Similarity")
 
-    parser.add_argument("--model", default="r_sew_resnet18", type=str, help="name of model")
+    parser.add_argument("--model", default="r_sew_resnet18", type=str, help="name of model for load")
+    parser.add_argument("--model-name", default=None, type=str, help="name of model for save")
     parser.add_argument("--train-dataset", default="ucf101", type=str, choices=["ucf101", "imagenet"], help="name of pretrain dataset")
     parser.add_argument("--checkpoint-path", default="model_checkpoint/ucf101/r_sew_resnet18.pth", type=str, help="path of pretrained model checkpoint")
 
@@ -84,7 +88,9 @@ def get_args():
     parser.add_argument("--trial", default=1, type=int, help="number of repetitions for the shuffled frame experiment or the noise image replacement experiment")
     parser.add_argument("--shuffle", action="store_true", help="experiment for shuffled frame")
     parser.add_argument("--replace", action="store_true", help="experiment for noise image replacement")
+    parser.add_argument("--replace-type", default="gaussian", type=str, choices=["gaussian", "uniform", "black", "static"], help="type of noise image for replacement")
     parser.add_argument("--window", default=0, type=int, help="number of frames per window for the shuffled frame experiment or the noise image replacement experiment")
+    parser.add_argument("--best-layer", action="store_true", help="only conduct experiment for the best layer")
 
     parser.add_argument("--output-dir", default="results/", help="directory to save results of representational similarity")
 
@@ -98,11 +104,11 @@ def main(args):
         layers_info = json.load(f)
     layers_info = layers_info[:-1]
     if args.replace:
-        noise_stimulus_path = os.path.join(args.stimulus_dir, "stimulus_allen_natural_movie_one_random_224.pt")
+        noise_stimulus_path = os.path.join(args.stimulus_dir, f"stimulus_allen_natural_movie_one_224_{args.replace_type}.pt")
     else:
         noise_stimulus_path = None
     visual_model = VisualModel(
-        model_name=args.model,
+        model_name=args.model_name,
         layers_info=layers_info,
         extraction=extraction,
         shuffle=args.shuffle,
@@ -121,7 +127,8 @@ def main(args):
         suffix=suffix,
         trial=args.trial,
         shuffle=args.shuffle,
-        replace=args.replace
+        replace=args.replace,
+        best_layer=args.best_layer
     )
     print(args)
     benchmark(visual_model)
@@ -130,4 +137,6 @@ def main(args):
 if __name__=="__main__":
     args = get_args()
     assert (not args.shuffle) or (not args.replace)
+    if args.model_name is None:
+        args.model_name = args.model
     main(args)

@@ -57,6 +57,7 @@ class Extraction:
         num_stimuli = stimulus.size(0)
         num_replace = int(np.ceil(num_stimuli / window))
         replace_index = np.random.randint(low=window, size=num_replace) + np.arange(0, num_replace * window, window)
+        replace_index[-1] = min(replace_index[-1], num_stimuli - 1)
         stimulus[replace_index] = replace[replace_index]
         self.stimulus = stimulus
         self.stimulus_change = True
