@@ -15,7 +15,7 @@ def preset_neural_dataset(args):
     exclude = True
     threshold = 0.5
     neural_dataset = NeuralDataset(
-        dataset_name="allen_natural_movie_one",
+        dataset_name=args.neural_dataset,
         brain_areas=['visp', 'visl', 'visrl', 'visal', 'vispm', 'visam'],
         data_dir=args.neural_dataset_dir,
         exclude=exclude,
@@ -25,7 +25,7 @@ def preset_neural_dataset(args):
 
 
 def build_extraction(args):
-    stimulus_name = "stimulus_allen_natural_movie_one_224.pt"
+    stimulus_name = f"stimulus_{args.neural_dataset}_224.pt"
     if args.train_dataset == "imagenet":
         if args.model in ['cornet_z', 'cornet_rt', 'cornet_s']:
             T = 1
@@ -54,7 +54,7 @@ def build_extraction(args):
 
 
 def save_dir_preset(args):
-    save_dir = os.path.join(args.output_dir, args.train_dataset)
+    save_dir = os.path.join(args.output_dir, args.neural_dataset, args.train_dataset)
     if args.shuffle:
         save_dir = os.path.join(save_dir, "stimulus_shuffle")
     if args.replace:
@@ -80,6 +80,7 @@ def get_args():
     parser.add_argument("--train-dataset", default="ucf101", type=str, choices=["ucf101", "imagenet"], help="name of pretrain dataset")
     parser.add_argument("--checkpoint-path", default="model_checkpoint/ucf101/r_sew_resnet18.pth", type=str, help="path of pretrained model checkpoint")
 
+    parser.add_argument("--neural-dataset", default="allen_natural_movie_one", type=str, choices=["allen_natural_movie_one", "allen_natural_movie_three"], help="name of neural dataset")
     parser.add_argument("--neural-dataset-dir", default="neural_dataset/", type=str, help="directory for storing neural dataset")
 
     parser.add_argument("--stimulus-dir", default="stimulus/", type=str, help="directory for stimulus")
@@ -104,7 +105,7 @@ def main(args):
         layers_info = json.load(f)
     layers_info = layers_info[:-1]
     if args.replace:
-        noise_stimulus_path = os.path.join(args.stimulus_dir, f"stimulus_allen_natural_movie_one_224_{args.replace_type}.pt")
+        noise_stimulus_path = os.path.join(args.stimulus_dir, f"stimulus_{args.neural_dataset}_224_{args.replace_type}.pt")
     else:
         noise_stimulus_path = None
     visual_model = VisualModel(
