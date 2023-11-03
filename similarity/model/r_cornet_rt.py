@@ -1,3 +1,5 @@
+## Reproduce from https://github.com/dicarlolab/CORnet.git
+
 from collections import OrderedDict
 import torch
 from torch import nn
