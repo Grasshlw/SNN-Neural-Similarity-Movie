@@ -74,7 +74,8 @@ class MovieBenchmark(Benchmark):
         super().__init__(neural_dataset, metric, save_dir, suffix)
         num_stimuli = len(self.neural_dataset[0])
         self.no_first_frame_idx = np.ones(num_stimuli, dtype=bool)
-        self.no_first_frame_idx[0] = False
+        if neural_dataset.dataset_name != "allen_natural_scenes":
+            self.no_first_frame_idx[0] = False
 
         self.trial = trial
         self.shuffle = shuffle
@@ -90,8 +91,8 @@ class MovieBenchmark(Benchmark):
         self._preset_print()
         if self.best_layer:
             scores = np.zeros((self.trial, self.num_areas))
-            split_save_dir = self.save_dir.split('/') 
-            original_save_dir = os.path.join(split_save_dir[0], split_save_dir[1])
+            split_save_dir = self.save_dir.split('/')
+            original_save_dir = os.path.join(*split_save_dir[0:4])
             assert os.path.isfile(os.path.join(original_save_dir, f"{self.model_name}.npy"))
             original_scores = np.load(os.path.join(original_save_dir, f"{self.model_name}.npy"))
             layers_index_for_area = np.argmax(original_scores, axis=0)

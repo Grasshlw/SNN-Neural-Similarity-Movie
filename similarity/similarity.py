@@ -12,12 +12,18 @@ from extraction import SNNStaticExtraction, SNNMovieExtraction, CNNStaticExtract
 
 
 def preset_neural_dataset(args):
+    time_step = 1
     exclude = True
     threshold = 0.5
+    if args.neural_dataset == "allen_natural_scenes":
+        time_step = 8
+        threshold = 0.8
+    
     neural_dataset = NeuralDataset(
         dataset_name=args.neural_dataset,
         brain_areas=['visp', 'visl', 'visrl', 'visal', 'vispm', 'visam'],
         data_dir=args.neural_dataset_dir,
+        time_step=time_step,
         exclude=exclude,
         threshold=threshold
     )
@@ -26,35 +32,61 @@ def preset_neural_dataset(args):
 
 def build_extraction(args):
     stimulus_name = f"stimulus_{args.neural_dataset}_224.pt"
+    model_args = {}
+    _3d = False
+    _checkpoint_args = False
     if args.train_dataset == "imagenet":
         if args.model in ['cornet_z', 'cornet_rt', 'cornet_s']:
             T = 1
+            _checkpoint_args = True
             extraction_tool = CNNStaticExtraction
         else:
             T = 4
             extraction_tool = SNNStaticExtraction
+            model_args['cnf'] = "ADD"
+            model_args['num_classes'] = 1000
     elif args.train_dataset == "ucf101":
-        if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc']:
-            T = 5
-            extraction_tool = CNNStaticExtraction
-        elif args.model in ['r_cornet_rt', 'r_resnet18']:
-            T = 16
-            extraction_tool = CNNMovieExtraction
+        if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc', 'r_cornet_rt', 'r_resnet18']:
+            if args.neural_dataset == "allen_natural_scenes":
+                T = 4
+                extraction_tool = CNNStaticExtraction
+            else:
+                T = 16
+                extraction_tool = CNNMovieExtraction
+            if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc']:
+                T = 5
+                _3d = True
+                _checkpoint_args = True
         else:
-            T = 16
-            extraction_tool = SNNMovieExtraction
+            if args.neural_dataset == "allen_natural_scenes":
+                T = 4
+                extraction_tool = SNNStaticExtraction
+            else:
+                T = 16
+                extraction_tool = SNNMovieExtraction
+            model_args['cnf'] = "ADD"
+            model_args['num_classes'] = 101
     extraction = extraction_tool(
         model_name=args.model,
         checkpoint_path=args.checkpoint_path,
         stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
         T=T,
-        device=args.device
+        _3d=_3d,
+        _checkpoint_args=_checkpoint_args,
+        device=args.device,
+        **model_args
     )
     return extraction, T
 
 
+def preset_metric(args):
+    if args.metric == "TSRSA":
+        metric = TSRSAMetric()
+    return metric
+
+
 def save_dir_preset(args):
-    save_dir = os.path.join(args.output_dir, args.neural_dataset, args.train_dataset)
+    save_dir = os.path.join(args.output_dir, args.metric, args.neural_dataset, args.train_dataset)
     if args.shuffle:
         save_dir = os.path.join(save_dir, "stimulus_shuffle")
     if args.replace:
@@ -80,8 +112,10 @@ def get_args():
     parser.add_argument("--train-dataset", default="ucf101", type=str, choices=["ucf101", "imagenet"], help="name of pretrain dataset")
     parser.add_argument("--checkpoint-path", default="model_checkpoint/ucf101/r_sew_resnet18.pth", type=str, help="path of pretrained model checkpoint")
 
-    parser.add_argument("--neural-dataset", default="allen_natural_movie_one", type=str, choices=["allen_natural_movie_one", "allen_natural_movie_three"], help="name of neural dataset")
+    parser.add_argument("--neural-dataset", default="allen_natural_movie_one", type=str, choices=["allen_natural_movie_one", "allen_natural_movie_three", "allen_natural_scenes"], help="name of neural dataset")
     parser.add_argument("--neural-dataset-dir", default="neural_dataset/", type=str, help="directory for storing neural dataset")
+
+    parser.add_argument("--metric", default="TSRSA", type=str, choices=["TSRSA"], help="name of similarity metric")
 
     parser.add_argument("--stimulus-dir", default="stimulus/", type=str, help="directory for stimulus")
     parser.add_argument("--device", default="cuda:0", type=str, help="device for extracting features")
@@ -119,7 +153,7 @@ def main(args):
     )
 
     neural_dataset, args.exclude, args.threshold = preset_neural_dataset(args)
-    metric = TSRSAMetric()
+    metric = preset_metric(args)
     save_dir, suffix = save_dir_preset(args)
     benchmark = MovieBenchmark(
         neural_dataset=neural_dataset,

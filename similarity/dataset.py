@@ -12,6 +12,20 @@ class NeuralDataset:
         for i in range(len(self.brain_areas)):
             self.neural_dataset[self.brain_areas[i]] = eval(f"self.{dataset_name}")(self.brain_areas[i], **kwargs)
 
+    def allen_natural_scenes(self, brain_area, time_step, exclude, threshold, _mean_time_step=True):
+        neural_data = np.load(os.path.join(self.data_dir, self.dataset_name, f"{brain_area}_{time_step}.npy"))
+
+        if exclude:
+            shr = np.load(os.path.join(self.data_dir, self.dataset_name, f"shr_{brain_area}.npy"))
+            neural_data = neural_data[:, :, shr >= threshold]
+
+        neural_data = neural_data / 50
+        if _mean_time_step:
+            neural_data = np.sum(neural_data, axis=1)
+            neural_data /= 25
+
+        return neural_data
+
     def allen_natural_movie_one(self, brain_area, exclude, threshold, time_step=1, _mean_time_step=True):
         neural_data = np.load(os.path.join(self.data_dir, self.dataset_name, f"{brain_area}_{time_step}.npy"))
 
