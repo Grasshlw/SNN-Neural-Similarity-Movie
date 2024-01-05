@@ -1,4 +1,7 @@
 import numpy as np
+from sklearn.linear_model import Ridge
+from sklearn.decomposition import TruncatedSVD, PCA
+from sklearn.random_projection import GaussianRandomProjection
 
 
 class SimilarityMetric:
@@ -45,6 +48,14 @@ class SimilarityMetric:
 
         return r
 
+    def _coefficient_of_determination(self, x, x_pred):
+        if x.ndim == 1:
+            return 1 - np.sum((x - x_pred) ** 2) / np.sum((x - np.mean(x)) ** 2)
+        elif x.ndim == 2:
+            return np.mean(1 - np.sum((x - x_pred) ** 2, axis=0) / np.sum((x - np.mean(x, axis=0, keepdims=True)) ** 2, axis=0))
+        else:
+            raise ValueError(f"Expected 1D or 2D array, got {x.ndim}D array instead")
+
     def score(self, model_data, neural_data):
         pass
 
@@ -60,3 +71,28 @@ class TSRSAMetric(SimilarityMetric):
         neural_RDM = neural_RDM[np.triu_indices(num_classes, 1)]
 
         return self._spearman_correlation_coefficient(model_RDM, neural_RDM)
+
+
+class FitMetric(SimilarityMetric):
+    def __init__(self, reduction="TSVD", dims=64, seed=2023):
+        super().__init__(seed)
+        self.reduction = reduction
+        self.dims = dims
+    
+    def score(self, model_data, neural_data):
+        if self.reduction == "TSVD":
+            red_model = TruncatedSVD(n_components=self.dims, random_state=self.seed)
+        else:
+            raise ValueError(f"Unknown reduction method: {self.reduction}")
+        if self.dims < model_data.shape[1]:
+            red_model.fit(model_data)
+            model_lowd = red_model.transform(model_data)
+        else:
+            model_lowd = model_data.copy()
+
+        reg = Ridge(alpha=1.0)
+        reg.fit(model_lowd, neural_data)
+        neural_pred = reg.predict(model_lowd)
+        r = self._coefficient_of_determination(neural_data, neural_pred)
+        
+        return r

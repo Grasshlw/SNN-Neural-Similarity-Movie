@@ -6,7 +6,7 @@ import numpy as np
 
 from dataset import NeuralDataset
 from visualmodel import VisualModel
-from metric import TSRSAMetric
+from metric import TSRSAMetric, FitMetric
 from benchmark import MovieBenchmark
 from extraction import SNNStaticExtraction, SNNMovieExtraction, CNNStaticExtraction, CNNMovieExtraction
 
@@ -18,7 +18,7 @@ def preset_neural_dataset(args):
     if args.neural_dataset == "allen_natural_scenes":
         time_step = 8
         threshold = 0.8
-    
+
     neural_dataset = NeuralDataset(
         dataset_name=args.neural_dataset,
         brain_areas=['visp', 'visl', 'visrl', 'visal', 'vispm', 'visam'],
@@ -82,6 +82,8 @@ def build_extraction(args):
 def preset_metric(args):
     if args.metric == "TSRSA":
         metric = TSRSAMetric()
+    elif args.metric == "Fit":
+        metric = FitMetric()
     return metric
 
 
@@ -115,7 +117,7 @@ def get_args():
     parser.add_argument("--neural-dataset", default="allen_natural_movie_one", type=str, choices=["allen_natural_movie_one", "allen_natural_movie_three", "allen_natural_scenes"], help="name of neural dataset")
     parser.add_argument("--neural-dataset-dir", default="neural_dataset/", type=str, help="directory for storing neural dataset")
 
-    parser.add_argument("--metric", default="TSRSA", type=str, choices=["TSRSA"], help="name of similarity metric")
+    parser.add_argument("--metric", default="TSRSA", type=str, choices=["TSRSA", "Fit"], help="name of similarity metric")
 
     parser.add_argument("--stimulus-dir", default="stimulus/", type=str, help="directory for stimulus")
     parser.add_argument("--device", default="cuda:0", type=str, help="device for extracting features")
