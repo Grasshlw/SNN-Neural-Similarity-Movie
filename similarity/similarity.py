@@ -96,10 +96,14 @@ def save_dir_preset(args):
     if args.shuffle or args.replace:
         if args.best_layer:
             save_dir = os.path.join(save_dir, "best_layer")
+    if args.clip_len > 0:
+        save_dir = os.path.join(save_dir, "stimulus_clip")
     
     suffix = ""
     if args.shuffle or args.replace:
         suffix = suffix + f"_{args.window}"
+    if args.clip_len > 0:
+        suffix = suffix + f"_{args.clip_len}"
 
     return save_dir, suffix
 
@@ -122,12 +126,15 @@ def get_args():
     parser.add_argument("--stimulus-dir", default="stimulus/", type=str, help="directory for stimulus")
     parser.add_argument("--device", default="cuda:0", type=str, help="device for extracting features")
 
-    parser.add_argument("--trial", default=1, type=int, help="number of repetitions for the shuffled frame experiment or the noise image replacement experiment")
+    parser.add_argument("--trial-for-ablation", default=1, type=int, help="number of repetitions for the shuffled frame experiment or the noise image replacement experiment")
     parser.add_argument("--shuffle", action="store_true", help="experiment for shuffled frame")
     parser.add_argument("--replace", action="store_true", help="experiment for noise image replacement")
     parser.add_argument("--replace-type", default="gaussian", type=str, choices=["gaussian", "uniform", "black", "static"], help="type of noise image for replacement")
     parser.add_argument("--window", default=0, type=int, help="number of frames per window for the shuffled frame experiment or the noise image replacement experiment")
     parser.add_argument("--best-layer", action="store_true", help="only conduct experiment for the best layer")
+
+    parser.add_argument("--trial-for-clip", default=1, type=int, help="number of repetitions for experiments with different movie clips")
+    parser.add_argument("--clip-len", default=0, type=int, help="length of movie clip")
 
     parser.add_argument("--output-dir", default="results/", help="directory to save results of representational similarity")
 
@@ -162,10 +169,12 @@ def main(args):
         metric=metric,
         save_dir=save_dir,
         suffix=suffix,
-        trial=args.trial,
+        trial_for_ablation=args.trial_for_ablation,
         shuffle=args.shuffle,
         replace=args.replace,
-        best_layer=args.best_layer
+        best_layer=args.best_layer,
+        trial_for_clip=args.trial_for_clip,
+        clip_len=args.clip_len
     )
     print(args)
     benchmark(visual_model)
@@ -173,7 +182,7 @@ def main(args):
 
 if __name__=="__main__":
     args = get_args()
-    assert (not args.shuffle) or (not args.replace)
+    assert (not args.shuffle) + (not args.replace) + (args.clip_len == 0) >= 2
     if args.model_name is None:
         args.model_name = args.model
     main(args)

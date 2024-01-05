@@ -70,19 +70,24 @@ class Benchmark:
 class MovieBenchmark(Benchmark):
     seed = 2023
 
-    def __init__(self, neural_dataset, metric, save_dir=None, suffix="", trial=1, shuffle=False, replace=False, best_layer=False):
+    def __init__(self, neural_dataset, metric, save_dir=None, suffix="", trial_for_ablation=1, shuffle=False, replace=False, best_layer=False, trial_for_clip=1, clip_len=0):
         super().__init__(neural_dataset, metric, save_dir, suffix)
-        num_stimuli = len(self.neural_dataset[0])
-        self.no_first_frame_idx = np.ones(num_stimuli, dtype=bool)
+        self.num_stimuli = len(self.neural_dataset[0])
+        self.no_first_frame_idx = np.ones(self.num_stimuli, dtype=bool)
         if neural_dataset.dataset_name != "allen_natural_scenes":
             self.no_first_frame_idx[0] = False
+            self.num_stimuli -= 1
 
-        self.trial = trial
+        self.trial_for_ablation = trial_for_ablation
         self.shuffle = shuffle
         self.replace = replace
         self.ablation = self.shuffle or self.replace
         self.best_layer = best_layer
         assert (self.best_layer and self.ablation) or (not self.best_layer)
+
+        self.trial_for_clip = trial_for_clip
+        self.clip_len = clip_len
+        assert 0 <= self.clip_len <= self.num_stimuli - self.trial_for_clip + 1
     
     def __call__(self, visual_model):
         self.model_name = visual_model.model_name
@@ -98,12 +103,18 @@ class MovieBenchmark(Benchmark):
             layers_index_for_area = np.argmax(original_scores, axis=0)
             layers_index = set(layers_index_for_area)
         else:
-            scores = np.zeros((self.trial, self.num_layers, self.num_areas))
+            scores = np.zeros((self.trial_for_ablation, self.trial_for_clip, self.num_layers, self.num_areas))
             layers_index = np.arange(self.num_layers)
         
         for layer_index in layers_index:
             np.random.seed(self.seed)
-            for i in range(self.trial):
+            if self.clip_len > 0:
+                start_index = np.random.choice(self.num_stimuli - self.clip_len + 1, size=self.trial_for_clip, replace=False)
+                end_index = start_index + self.clip_len
+            else:
+                start_index = np.zeros(self.trial_for_clip, dtype=int)
+                end_index = np.ones(self.trial_for_clip, dtype=int) * self.num_stimuli
+            for i in range(self.trial_for_ablation):
                 print()
                 if not self.ablation:
                     print(f"Extracting features of layer {layer_index + 1} of {self.model_name}")
@@ -139,20 +150,27 @@ class MovieBenchmark(Benchmark):
                         if self.replace:
                             neural_data = neural_data[self.no_first_frame_idx]
 
-                    score = self.metric.score(model_data, neural_data)
-                    self._print_score(brain_area, f"{self.model_name}_{layer_index + 1}", score, time.time() - start_time)
+                    for j in range(self.trial_for_clip):
+                        score = self.metric.score(model_data[start_index[j]: end_index[j]], neural_data[start_index[j]: end_index[j]])
+                        self._print_score(brain_area, f"{self.model_name}_{layer_index + 1}", score, time.time() - start_time)
 
-                    if self.best_layer:
-                        scores[i, area_index] = score
-                    else:
-                        scores[i, layer_index, area_index] = score
+                        if self.best_layer:
+                            scores[i, area_index] = score
+                        else:
+                            scores[i, j, layer_index, area_index] = score
         print()
         if self.best_layer:
             self._print_one_layer_scores(np.mean(scores, axis=0))
         else:
-            self._print_all_scores(np.mean(scores, axis=0))
+            self._print_all_scores(np.mean(np.mean(scores, axis=0), axis=0))
         
         if self.save_dir is not None:
             if not self.ablation:
                 scores = np.mean(scores, axis=0)
+            if self.clip_len == 0:
+                if not self.ablation:
+                    scores = np.mean(scores, axis=0)
+                else:
+                    if not self.best_layer:
+                        scores = np.mean(scores, axis=1)
             self._save_scores(scores)
