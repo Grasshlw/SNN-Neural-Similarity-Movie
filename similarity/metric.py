@@ -1,7 +1,6 @@
 import numpy as np
 from sklearn.linear_model import Ridge
-from sklearn.decomposition import TruncatedSVD, PCA
-from sklearn.random_projection import GaussianRandomProjection
+from sklearn.decomposition import PCA
 
 
 class SimilarityMetric:
@@ -73,17 +72,15 @@ class TSRSAMetric(SimilarityMetric):
         return self._spearman_correlation_coefficient(model_RDM, neural_RDM)
 
 
-class FitMetric(SimilarityMetric):
-    def __init__(self, reduction="TSVD", dims=64, seed=2023):
+class RegMetric(SimilarityMetric):
+    def __init__(self, dims=40, seed=2023):
         super().__init__(seed)
-        self.reduction = reduction
         self.dims = dims
     
     def score(self, model_data, neural_data):
-        if self.reduction == "TSVD":
-            red_model = TruncatedSVD(n_components=self.dims, random_state=self.seed)
-        else:
-            raise ValueError(f"Unknown reduction method: {self.reduction}")
+        num_stimuli = model_data.shape[0]
+
+        red_model = PCA(n_components=self.dims, random_state=self.seed)
         if self.dims < model_data.shape[1]:
             red_model.fit(model_data)
             model_lowd = red_model.transform(model_data)
