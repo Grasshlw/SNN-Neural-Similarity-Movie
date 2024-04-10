@@ -95,7 +95,7 @@ class MovieBenchmark(Benchmark):
 
         self._preset_print()
         if self.best_layer:
-            scores = np.zeros((self.trial, self.num_areas))
+            scores = np.zeros((self.trial_for_ablation, self.num_areas))
             split_save_dir = self.save_dir.split('/')
             original_save_dir = os.path.join(*split_save_dir[0:4])
             assert os.path.isfile(os.path.join(original_save_dir, f"{self.model_name}.npy"))

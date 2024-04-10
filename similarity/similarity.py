@@ -46,7 +46,7 @@ def build_extraction(args):
             model_args['cnf'] = "ADD"
             model_args['num_classes'] = 1000
     elif args.train_dataset == "ucf101":
-        if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc', 'r_cornet_rt', 'r_resnet18']:
+        if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc', 'cornet', 'lorafb_cnet18']:
             if args.neural_dataset == "allen_natural_scenes":
                 T = 4
                 extraction_tool = CNNStaticExtraction
@@ -113,10 +113,10 @@ def get_args():
 
     parser = argparse.ArgumentParser(description="Neural Representation Similarity")
 
-    parser.add_argument("--model", default="r_sew_resnet18", type=str, help="name of model for load")
+    parser.add_argument("--model", default="lorafb_snet18", type=str, help="name of model for load")
     parser.add_argument("--model-name", default=None, type=str, help="name of model for save")
     parser.add_argument("--train-dataset", default="ucf101", type=str, choices=["ucf101", "imagenet"], help="name of pretrain dataset")
-    parser.add_argument("--checkpoint-path", default="model_checkpoint/ucf101/r_sew_resnet18.pth", type=str, help="path of pretrained model checkpoint")
+    parser.add_argument("--checkpoint-path", default="model_checkpoint/ucf101/lorafb_snet18.pth", type=str, help="path of pretrained model checkpoint")
 
     parser.add_argument("--neural-dataset", default="allen_natural_movie_one", type=str, choices=["allen_natural_movie_one", "allen_natural_movie_three", "allen_natural_scenes"], help="name of neural dataset")
     parser.add_argument("--neural-dataset-dir", default="neural_dataset/", type=str, help="directory for storing neural dataset")

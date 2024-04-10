@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 
-__all__ = ["r_cornet_rt"]
+__all__ = ["cornet"]
 
 
 HASH = '933c001c'
@@ -187,5 +187,5 @@ class R_CORnet_RT(nn.Module):
         self.final_outputs = {'V1': None, 'V2': None, 'V4': None, 'IT': None}
 
 
-def r_cornet_rt():
-    return R_CORnet_RT()
+def cornet(**kwargs):
+    return R_CORnet_RT(**kwargs)

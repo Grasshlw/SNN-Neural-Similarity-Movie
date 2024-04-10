@@ -4,15 +4,15 @@ import numpy as np
 from tqdm import tqdm
 
 from model.SEWResNet import *
-from model.RecurrentSEWResNet import *
+from model.LoRaFBSNet import *
 from model.functional import *
 from spikingjelly.activation_based import functional, neuron
 
 from model.cornet import *
 from model.monkeynet import *
 
-from model.r_cornet_rt import *
-from model.RecurrentResNet import *
+from model.CORnet import *
+from model.LoRaFBCNet import *
 
 
 class Extraction:

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 
-__all__ = ['RecurrentResNet', 'r_resnet18', 'r_resnet34', 'r_resnet50', 'r_resnet101', 'r_resnet152']
+__all__ = ['LoRaFBCNet', 'lorafb_cnet18', 'lorafb_cnet34', 'lorafb_cnet50', 'lorafb_cnet101', 'lorafb_cnet152']
 
 
 class ConvRecurrent(nn.Module):
@@ -133,10 +133,10 @@ class Bottleneck(nn.Module):
         return out
 
 
-class RecurrentResNet(nn.Module):
+class LoRaFBCNet(nn.Module):
     def __init__(self, block, layers, num_classes=101, groups=1, width_per_groups=64, 
                  norm_layer=None, zero_init_residual=False, cnf=None):
-        super(RecurrentResNet, self).__init__()
+        super(LoRaFBCNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
@@ -222,21 +222,21 @@ class RecurrentResNet(nn.Module):
         self.y = [None, None, None, None]
 
         
-def r_resnet18(**kwargs):
-    return RecurrentResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
+def lorafb_cnet18(**kwargs):
+    return LoRaFBCNet(BasicBlock, [2, 2, 2, 2], **kwargs)
 
 
-def r_resnet34(**kwargs):
-    return RecurrentResNet(BasicBlock, [3, 4, 6, 3], **kwargs)
+def lorafb_cnet34(**kwargs):
+    return LoRaFBCNet(BasicBlock, [3, 4, 6, 3], **kwargs)
 
 
-def r_resnet50(**kwargs):
-    return RecurrentResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
+def lorafb_cnet50(**kwargs):
+    return LoRaFBCNet(Bottleneck, [3, 4, 6, 3], **kwargs)
 
 
-def r_resnet101(**kwargs):
-    return RecurrentResNet(Bottleneck, [3, 4, 23, 3], **kwargs)
+def lorafb_cnet101(**kwargs):
+    return LoRaFBCNet(Bottleneck, [3, 4, 23, 3], **kwargs)
 
 
-def r_resnet152(**kwargs):
-    return RecurrentResNet(Bottleneck, [3, 8, 36, 3], **kwargs)
+def lorafb_cnet152(**kwargs):
+    return LoRaFBCNet(Bottleneck, [3, 8, 36, 3], **kwargs)
