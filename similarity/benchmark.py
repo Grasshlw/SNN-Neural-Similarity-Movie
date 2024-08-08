@@ -70,9 +70,14 @@ class Benchmark:
 class MovieBenchmark(Benchmark):
     seed = 2023
 
-    def __init__(self, neural_dataset, metric, save_dir=None, suffix="", trial_for_ablation=1, shuffle=False, replace=False, best_layer=False, trial_for_clip=1, clip_len=0):
+    def __init__(self, neural_dataset, metric, save_dir=None, suffix="", trial_for_ablation=1, shuffle=False, replace=False, best_layer=False, trial_for_clip=1, clip_len=0, front_len=0):
         super().__init__(neural_dataset, metric, save_dir, suffix)
-        self.num_stimuli = len(self.neural_dataset[0])
+        self.front_len = front_len
+        assert self.front_len >= 0 and self.front_len <= len(self.neural_dataset[0])
+        if self.front_len == 0:
+            self.num_stimuli = len(self.neural_dataset[0])
+        else:
+            self.num_stimuli = self.front_len
         self.no_first_frame_idx = np.ones(self.num_stimuli, dtype=bool)
         if neural_dataset.dataset_name != "allen_natural_scenes":
             self.no_first_frame_idx[0] = False
@@ -142,6 +147,8 @@ class MovieBenchmark(Benchmark):
                     
                     neural_data = self.neural_dataset[area_index]
                     if not self.ablation:
+                        if self.front_len > 0:
+                            neural_data = neural_data[:self.front_len]
                         neural_data = neural_data[self.no_first_frame_idx]
                     else:
                         if self.shuffle:

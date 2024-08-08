@@ -73,6 +73,11 @@ class Extraction:
         self.stimulus_change = True
         return replace_index
 
+    def front_stimulus(self, front_len):
+        assert front_len >=0 and front_len <= len(self.stimulus)
+        self.stimulus = self.stimulus[:front_len]
+        self.stimulus_change = True
+
     def hook_fn(self, module, inputs, outputs):
         pass
 

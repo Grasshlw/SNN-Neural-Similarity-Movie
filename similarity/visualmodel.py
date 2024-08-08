@@ -4,7 +4,7 @@ import numpy as np
 
 
 class VisualModel:
-    def __init__(self, model_name, layers_info, extraction, shuffle=False, replace=False, window=0, noise_stimulus_path=None, _normalize=False):
+    def __init__(self, model_name, layers_info, extraction, shuffle=False, replace=False, window=0, noise_stimulus_path=None, front_len=0, _normalize=False):
         self.model_name = model_name
         self.layers_info = layers_info
         self.extraction = extraction
@@ -14,10 +14,14 @@ class VisualModel:
         self.replace = replace
         self.window = window
         self.noise_stimulus_path = noise_stimulus_path
+        self.front_len = front_len
         if self.shuffle or self.replace:
             assert self.window > 0
         if self.replace:
             assert self.noise_stimulus_path is not None
+        if self.front_len > 0:
+            self.extraction.set_stimulus(self.stimulus_path)
+            self.extraction.front_stimulus(self.front_len)
 
         self._normalize = _normalize
     

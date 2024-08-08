@@ -98,12 +98,16 @@ def save_dir_preset(args):
             save_dir = os.path.join(save_dir, "best_layer")
     if args.clip_len > 0:
         save_dir = os.path.join(save_dir, "stimulus_clip")
+    if args.front_len > 0:
+        save_dir = os.path.join(save_dir, "stimulus_front")
     
     suffix = ""
     if args.shuffle or args.replace:
         suffix = suffix + f"_{args.window}"
     if args.clip_len > 0:
         suffix = suffix + f"_{args.clip_len}"
+    if args.front_len > 0:
+        suffix = suffix + f"_{args.front_len}"
 
     return save_dir, suffix
 
@@ -136,6 +140,8 @@ def get_args():
     parser.add_argument("--trial-for-clip", default=1, type=int, help="number of repetitions for experiments with different movie clips")
     parser.add_argument("--clip-len", default=0, type=int, help="length of movie clip")
 
+    parser.add_argument("--front-len", default=0, type=int, help="experiment for the front part of movie")
+
     parser.add_argument("--output-dir", default="results/", help="directory to save results of representational similarity")
 
     args = parser.parse_args()
@@ -158,7 +164,8 @@ def main(args):
         shuffle=args.shuffle,
         replace=args.replace,
         window=args.window,
-        noise_stimulus_path=noise_stimulus_path
+        noise_stimulus_path=noise_stimulus_path,
+        front_len=args.front_len
     )
 
     neural_dataset, args.exclude, args.threshold = preset_neural_dataset(args)
@@ -174,7 +181,8 @@ def main(args):
         replace=args.replace,
         best_layer=args.best_layer,
         trial_for_clip=args.trial_for_clip,
-        clip_len=args.clip_len
+        clip_len=args.clip_len,
+        front_len=args.front_len
     )
     print(args)
     benchmark(visual_model)
@@ -182,7 +190,7 @@ def main(args):
 
 if __name__=="__main__":
     args = get_args()
-    assert (not args.shuffle) + (not args.replace) + (args.clip_len == 0) >= 2
+    assert (not args.shuffle) + (not args.replace) + (args.clip_len == 0) + (args.front_len == 0) >= 3
     if args.model_name is None:
         args.model_name = args.model
     main(args)
