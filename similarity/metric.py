@@ -39,11 +39,22 @@ class SimilarityMetric:
         
         return r
 
-    def _spearman_correlation_coefficient(self, x, y):
-        x_rank = np.argsort(np.argsort(x)).astype("float64")
-        y_rank = np.argsort(np.argsort(y)).astype("float64")
-        n = x.shape[0]
-        r = 1 - 6 * np.sum((x_rank - y_rank) ** 2) / (n ** 3 - n)
+    def _spearman_correlation_coefficient(self, x, y, mode="normal"):
+        if mode == "cross":
+            x_rank = np.argsort(np.argsort(x, axis=1), axis=1).astype("float64")
+            y_rank = np.argsort(np.argsort(y, axis=1), axis=1).astype("float64")
+            n = x.shape[1]
+            x_diag = np.diagonal(np.dot(x_rank, x_rank.T)).reshape((-1, 1))
+            y_diag = np.diagonal(np.dot(y_rank, y_rank.T)).reshape((1, -1))
+            r = np.tile(x_diag, (1, x.shape[0])) - 2 * np.dot(x_rank, y_rank.T) + np.tile(y_diag, (x.shape[0], 1))
+            r = 1 - 6 * r / (n ** 3 - n)
+        elif mode == "normal":
+            x_rank = np.argsort(np.argsort(x)).astype("float64")
+            y_rank = np.argsort(np.argsort(y)).astype("float64")
+            n = x.shape[0]
+            r = 1 - 6 * np.sum((x_rank - y_rank) ** 2) / (n ** 3 - n)
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
 
         return r
 
@@ -65,6 +76,19 @@ class TSRSAMetric(SimilarityMetric):
 
         model_RDM = 1 - self._pearson_correlation_coefficient(model_data, model_data, mode="cross")
         neural_RDM = 1 - self._pearson_correlation_coefficient(neural_data, neural_data, mode="cross")
+
+        model_RDM = model_RDM[np.triu_indices(num_classes, 1)]
+        neural_RDM = neural_RDM[np.triu_indices(num_classes, 1)]
+
+        return self._spearman_correlation_coefficient(model_RDM, neural_RDM)
+
+
+class STSRSAMetric(SimilarityMetric): 
+    def score(self, model_data, neural_data):
+        num_classes = model_data.shape[0]
+
+        model_RDM = 1 - self._spearman_correlation_coefficient(model_data, model_data, mode="cross")
+        neural_RDM = 1 - self._spearman_correlation_coefficient(neural_data, neural_data, mode="cross")
 
         model_RDM = model_RDM[np.triu_indices(num_classes, 1)]
         neural_RDM = neural_RDM[np.triu_indices(num_classes, 1)]

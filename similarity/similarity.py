@@ -6,7 +6,7 @@ import numpy as np
 
 from dataset import NeuralDataset
 from visualmodel import VisualModel
-from metric import TSRSAMetric, RegMetric
+from metric import TSRSAMetric, RegMetric, STSRSAMetric
 from benchmark import MovieBenchmark
 from extraction import SNNStaticExtraction, SNNMovieExtraction, CNNStaticExtraction, CNNMovieExtraction
 
@@ -84,6 +84,8 @@ def preset_metric(args):
         metric = TSRSAMetric()
     elif args.metric == "Regression":
         metric = RegMetric()
+    elif args.metric == "STSRSA":
+        metric = STSRSAMetric()
     return metric
 
 
@@ -125,7 +127,7 @@ def get_args():
     parser.add_argument("--neural-dataset", default="allen_natural_movie_one", type=str, choices=["allen_natural_movie_one", "allen_natural_movie_three", "allen_natural_scenes"], help="name of neural dataset")
     parser.add_argument("--neural-dataset-dir", default="neural_dataset/", type=str, help="directory for storing neural dataset")
 
-    parser.add_argument("--metric", default="TSRSA", type=str, choices=["TSRSA", "Regression"], help="name of similarity metric")
+    parser.add_argument("--metric", default="TSRSA", type=str, choices=["TSRSA", "Regression", "STSRSA"], help="name of similarity metric")
 
     parser.add_argument("--stimulus-dir", default="stimulus/", type=str, help="directory for stimulus")
     parser.add_argument("--device", default="cuda:0", type=str, help="device for extracting features")
