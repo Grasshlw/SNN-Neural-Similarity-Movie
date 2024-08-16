@@ -13,6 +13,7 @@ from model.monkeynet import *
 
 from model.CORnet import *
 from model.LoRaFBCNet import *
+from model.SCORnet import *
 
 
 class Extraction:
@@ -86,14 +87,13 @@ class Extraction:
     
 
 class SNNStaticExtraction(Extraction):
-    def __init__(self, model_name, checkpoint_path, stimulus_path, T, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
+    def __init__(self, model_name, checkpoint_path, stimulus_path, T, _snn=True, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
         model = self.load_model(model_name, checkpoint_path, _checkpoint_args, **kwargs)
         set_step_mode(model, 'm', (ConvRecurrentContainer, ))
         set_backend(model, 'cupy', neuron.BaseNode, (ConvRecurrentContainer, ))
 
         super().__init__(model, model_name, stimulus_path, device)
         self.T = T
-        self._3d = _3d
         self._mean = True
     
     def hook_fn(self, module, inputs, outputs):
@@ -135,14 +135,13 @@ class SNNStaticExtraction(Extraction):
 
 
 class SNNMovieExtraction(Extraction):
-    def __init__(self, model_name, checkpoint_path, stimulus_path, T, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
+    def __init__(self, model_name, checkpoint_path, stimulus_path, T, _snn=True, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
         model = self.load_model(model_name, checkpoint_path, _checkpoint_args, **kwargs)
         set_step_mode(model, 'm', (ConvRecurrentContainer, ))
         set_backend(model, 'cupy', neuron.BaseNode, (ConvRecurrentContainer, ))
 
         super().__init__(model, model_name, stimulus_path, device)
         self.T = T
-        self._3d = _3d
 
     def hook_fn(self, module, inputs, outputs):
         self.features.append(outputs.data.cpu())
@@ -177,10 +176,11 @@ class SNNMovieExtraction(Extraction):
 
 
 class CNNStaticExtraction(Extraction):
-    def __init__(self, model_name, checkpoint_path, stimulus_path, T=1, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
+    def __init__(self, model_name, checkpoint_path, stimulus_path, T=1, _snn=False, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
         model = self.load_model(model_name, checkpoint_path, _checkpoint_args, **kwargs)
         super().__init__(model, model_name, stimulus_path, device)
         self.T = T
+        self._snn = _snn
         self._3d = _3d
     
     def hook_fn(self, module, inputs, outputs):
@@ -197,7 +197,9 @@ class CNNStaticExtraction(Extraction):
 
         self.model.eval()
         if self.T > 1 and not self._3d:
-            self.model.reset()
+            if self._snn:
+                functional.reset_net(self.model)
+            self.model.reset_state()
         with torch.inference_mode():
             hook = eval(f"self.model.{layer_name}").register_forward_hook(self.hook_fn)
             n = 0
@@ -222,7 +224,9 @@ class CNNStaticExtraction(Extraction):
                             extraction[n: n + bs] = features.view(bs, self.T, features.size(1), features.size(2), features.size(3)).mean(dim=1)
                         else:
                             extraction[n: n + bs] = features.mean(dim=0)
-                        self.model.reset()
+                        if self._snn:
+                            functional.reset_net(self.model)
+                        self.model.reset_state()
                 else:
                     extraction[n: n + bs] = features[-1]
                 n += bs
@@ -232,10 +236,11 @@ class CNNStaticExtraction(Extraction):
 
 
 class CNNMovieExtraction(Extraction):
-    def __init__(self, model_name, checkpoint_path, stimulus_path, T=1, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
+    def __init__(self, model_name, checkpoint_path, stimulus_path, T=1, _snn=False, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
         model = self.load_model(model_name, checkpoint_path, _checkpoint_args, **kwargs)
         super().__init__(model, model_name, stimulus_path, device)
         self.T = T
+        self._snn = _snn
         self._3d = _3d
     
     def hook_fn(self, module, inputs, outputs):
@@ -252,7 +257,9 @@ class CNNMovieExtraction(Extraction):
 
         self.model.eval()
         if not self._3d:
-            self.model.reset()
+            if self._snn:
+                functional.reset_net(self.model)
+            self.model.reset_state()
         with torch.inference_mode():
             hook = eval(f"self.model.{layer_name}").register_forward_hook(self.hook_fn)
             n = 0

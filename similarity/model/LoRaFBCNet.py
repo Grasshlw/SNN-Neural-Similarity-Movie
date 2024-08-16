@@ -135,7 +135,7 @@ class Bottleneck(nn.Module):
 
 class LoRaFBCNet(nn.Module):
     def __init__(self, block, layers, num_classes=101, groups=1, width_per_groups=64, 
-                 norm_layer=None, zero_init_residual=False, cnf=None):
+                 norm_layer=None, zero_init_residual=False):
         super(LoRaFBCNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
@@ -218,7 +218,7 @@ class LoRaFBCNet(nn.Module):
         
         return out
     
-    def reset(self):
+    def reset_state(self):
         self.y = [None, None, None, None]
 
         

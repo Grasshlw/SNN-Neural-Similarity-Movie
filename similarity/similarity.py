@@ -33,11 +33,13 @@ def preset_neural_dataset(args):
 def build_extraction(args):
     stimulus_name = f"stimulus_{args.neural_dataset}_224.pt"
     model_args = {}
+    _snn = True
     _3d = False
     _checkpoint_args = False
     if args.train_dataset == "imagenet":
         if args.model in ['cornet_z', 'cornet_rt', 'cornet_s']:
             T = 1
+            _snn = False
             _checkpoint_args = True
             extraction_tool = CNNStaticExtraction
         else:
@@ -46,17 +48,20 @@ def build_extraction(args):
             model_args['cnf'] = "ADD"
             model_args['num_classes'] = 1000
     elif args.train_dataset == "ucf101":
-        if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc', 'cornet', 'lorafb_cnet18']:
+        if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc', 'cornet', 'lorafb_cnet18', 's_cornet']:
             if args.neural_dataset == "allen_natural_scenes":
                 T = 4
                 extraction_tool = CNNStaticExtraction
             else:
                 T = 16
                 extraction_tool = CNNMovieExtraction
+            _snn = False
             if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc']:
                 T = 5
                 _3d = True
                 _checkpoint_args = True
+            elif args.model in ['s_cornet']:
+                _snn = True
         else:
             if args.neural_dataset == "allen_natural_scenes":
                 T = 4
@@ -71,6 +76,7 @@ def build_extraction(args):
         checkpoint_path=args.checkpoint_path,
         stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
         T=T,
+        _snn=_snn,
         _3d=_3d,
         _checkpoint_args=_checkpoint_args,
         device=args.device,

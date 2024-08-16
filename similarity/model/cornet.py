@@ -143,7 +143,7 @@ class CORnet_RT(nn.Module):
             ('linear', nn.Linear(512, 1000))
         ]))
 
-    def forward(self, inp, n_layer=6):
+    def forward(self, inp):
         outputs = {'inp': inp}
         states = {}
         blocks = ['inp', 'V1', 'V2', 'V4', 'IT']
