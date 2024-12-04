@@ -218,7 +218,7 @@ class LoRaFBCNet(nn.Module):
         
         return out
     
-    def reset(self):
+    def reset_state(self):
         self.y = [None, None, None, None]
 
         

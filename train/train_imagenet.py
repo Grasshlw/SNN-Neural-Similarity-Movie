@@ -17,6 +17,7 @@ from spikingjelly.activation_based import functional, neuron
 import utils
 import transforms
 from model.LoRaFBSNet import *
+from model.SEWResNet import *
 from model.functional import set_step_mode, set_backend
 
 
@@ -64,7 +65,7 @@ def get_args():
     parser.add_argument("--model-name", default="lorafb_snet18", type=str, help="name of model to train")
     parser.add_argument("--not-snn", action="store_true", help="model is not a snn")
     parser.add_argument('--T', default=4, type=int, help="total time-steps")
-    parser.add_argument("--output-path", default="/logs/", help="path to save outputs")
+    parser.add_argument("--output-path", default="logs/", help="path to save outputs")
     parser.add_argument("--print-freq", default=1000, type=int, help="print frequency")
     
     parser.add_argument("--local_rank", default=0, type=int, help="node rank for distributed training")
@@ -91,11 +92,11 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
     
 
-def _get_cache_path(filepath, dataset_name):
+def _get_cache_path(filepath, datapath):
     import hashlib
     
     h = hashlib.sha1(filepath.encode()).hexdigest()
-    cache_path = os.path.join("/userhome", "datasets", dataset_name, h[:10] + ".pt")
+    cache_path = os.path.join(datapath, h[:10] + ".pt")
     return cache_path
 
 
@@ -104,7 +105,7 @@ def load_data(args, interpolation=InterpolationMode.BILINEAR):
     
     print("Loading training data")
     st = time.time()
-    cache_path = _get_cache_path(os.path.join(args.data_path, "train"), "ImageNet")
+    cache_path = _get_cache_path(os.path.join(args.data_path, "train"), args.data_path)
     if args.cache_dataset and os.path.exists(cache_path):
         print(f"Loading train dataset from {cache_path}")
         train_set, _ = torch.load(cache_path)
@@ -139,7 +140,7 @@ def load_data(args, interpolation=InterpolationMode.BILINEAR):
     
     print("Loading validation data")
     st = time.time()
-    cache_path = _get_cache_path(os.path.join(args.data_path, "test"), "ImageNet")
+    cache_path = _get_cache_path(os.path.join(args.data_path, "test"), args.data_path)
     if args.cache_dataset and os.path.exists(cache_path):
         print(f"Loading test dataset from {cache_path}")
         test_set, _ = torch.load(cache_path)
@@ -338,7 +339,8 @@ def evaluate(model, criterion, data_loader, device, args, log_suffix=""):
     return test_loss, test_acc
 
 
-def main(args):
+def main():
+    args = get_args()
     set_deterministic()
     utils.init_distributed_mode(args)
     print(args)
@@ -496,5 +498,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    args = get_args()
-    main(args)
+    main()

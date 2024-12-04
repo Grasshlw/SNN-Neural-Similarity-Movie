@@ -19,6 +19,7 @@ from model.LoRaFBSNet import *
 from model.SEWResNet import *
 from model.CORnet import *
 from model.LoRaFBCNet import *
+from model.SCORnet import *
 from model.functional import set_step_mode, set_backend
 
 
@@ -29,13 +30,11 @@ def get_args():
     import argparse
     
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", default="UCF101", type=str, choices=["UCF101"], help="name of dataset")
-    parser.add_argument("--data-path", default="/dataset/UCF101/UCF-101/", help="dataset path")
-    parser.add_argument("--annotation-path", default="/dataset/UCF101/UCF101TrainTestSplits-RecognitionTask/ucfTrainTestlist/", help="annotation path")
+    parser.add_argument("--dataset", default="UCF101", type=str, choices=["UCF101", "UCF101_subset", "UCF101_random"], help="name of dataset")
+    parser.add_argument("--data-path", default="/datasets/UCF101/UCF-101/", help="dataset path")
+    parser.add_argument("--annotation-path", default="/datasets/UCF101/UCF101TrainTestSplits-RecognitionTask/ucfTrainTestlist/", help="annotation path")
     parser.add_argument("--frames", default=16, type=int, help="number of frames per clip")
     parser.add_argument("--f-steps", default=16, type=int, help="number of frames between each clip")
-    parser.add_argument("--frame-rate", default=15, type=int, help="the frame rate")
-    parser.add_argument("--clips-per-video", default=5, type=int, help="maximum number of clips per video to consider")
     parser.add_argument("--cache-dataset", action="store_true", help="Cache the datasets for quicker initialization. It also serializes the transforms")
     
     parser.add_argument("--epochs", default=100, type=int, help="number of epochs to train")
@@ -59,7 +58,7 @@ def get_args():
     parser.add_argument("--not-snn", action="store_true", help="model is not a snn")
     parser.add_argument("--not-recurrent", action="store_true", help="model is not a recurrent network")
     parser.add_argument("--pretrained", default=None, help="path of pretrained checkpoint")
-    parser.add_argument("--output-path", default="/logs/", help="path to save outputs")
+    parser.add_argument("--output-path", default="logs/", help="path to save outputs")
     parser.add_argument("--print-freq", default=100, type=int, help="print frequency")
     
     parser.add_argument("--local_rank", default=0, type=int, help="node rank for distributed training")
@@ -86,44 +85,71 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
     
 
-def _get_cache_path(filepath, dataset_name):
+def _get_cache_path(filepath, datapath):
     import hashlib
     
     h = hashlib.sha1(filepath.encode()).hexdigest()
-    cache_path = os.path.join("/userhome", "datasets", dataset_name, h[:10] + ".pt")
-#     cache_path = os.path.join("~", "userhome", "datasets", "UCF101", h[:10] + ".pt")
+    cache_path = os.path.join(datapath, h[:10] + ".pt")
 #     cache_path = os.path.expanduser(cache_path)
     return cache_path
 
 
 def load_data(args):
-    return eval(f"load_{args.dataset}")(args)
+    if "UCF101" in args.dataset:
+        return eval(f"load_UCF101")(args)
 
     
 def load_UCF101(args):
+    if args.dataset == "UCF101":
+        dataset_loader = datasets.UCF101WithVideoID
+    elif args.dataset == "UCF101_subset":
+        dataset_loader = datasets.UCF101OneClip
+    elif args.dataset == "UCF101_random":
+        dataset_loader = datasets.UCF101RandomClip
     print("Loading data...")
     print("Loading training data")
     st = time.time()
-    cache_path = _get_cache_path(os.path.join(args.data_path, "train"), args.dataset)
+    cache_path = _get_cache_path(os.path.join(args.data_path, "train"), args.data_path)
     if args.cache_dataset and os.path.exists(cache_path):
         print(f"Loading train dataset from {cache_path}")
         train_set, _ = torch.load(cache_path)
     else:
-        transforms_train = transforms.Compose([
-            ConvertBHWCtoBCHW(),
-            transforms.ConvertImageDtype(torch.float32),
-            transforms.Resize((256, 340)),
-            transforms.RandomCrop((256, 256)),
-            transforms.Resize((224, 224)),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-        ])
-        train_set = datasets.UCF101WithVideoID(root=args.data_path,
-                                               annotation_path=args.annotation_path,
-                                               frames_per_clip=args.frames,
-                                               step_between_clips=args.f_steps,
-                                               fold=1,
-                                               train=True,
-                                               transform=transforms_train)
+        if args.dataset == "UCF101":
+            transforms_train = transforms.Compose([
+                ConvertBHWCtoBCHW(),
+                transforms.ConvertImageDtype(torch.float32),
+                transforms.Resize((256, 340)),
+                transforms.RandomCrop((256, 256)),
+                transforms.Resize((224, 224)),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+            train_set = dataset_loader(
+                root=args.data_path,
+                annotation_path=args.annotation_path,
+                frames_per_clip=args.frames,
+                step_between_clips=args.f_steps,
+                fold=1,
+                train=True,
+                transform=transforms_train
+            )
+        else:
+            transforms_train = transforms.Compose([
+                transforms.PILToTensor(),
+                transforms.ConvertImageDtype(torch.float32),
+                transforms.Resize((256, 340)),
+                transforms.RandomCrop((256, 256)),
+                transforms.Resize((224, 224)),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+            train_set = dataset_loader(
+                data_path=args.data_path,
+                annotation_path=args.annotation_path,
+                frames_per_clip=args.frames,
+                downsample=1,
+                fold=1,
+                train=True,
+                transform=transforms_train
+            )
         if args.cache_dataset:
             print(f"Saving train dataset to {cache_path}")
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
@@ -133,26 +159,47 @@ def load_UCF101(args):
     
     print("Loading validation data")
     st = time.time()
-    cache_path = _get_cache_path(os.path.join(args.data_path, "test"), args.dataset)
+    cache_path = _get_cache_path(os.path.join(args.data_path, "test"), args.data_path)
     if args.cache_dataset and os.path.exists(cache_path):
         print(f"Loading test dataset from {cache_path}")
         test_set, _ = torch.load(cache_path)
     else:
-        transforms_test = transforms.Compose([
-            ConvertBHWCtoBCHW(),
-            transforms.ConvertImageDtype(torch.float32),
-            transforms.Resize((256, 340)),
-            transforms.CenterCrop((256, 256)),
-            transforms.Resize((224, 224)),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-        ])
-        test_set = datasets.UCF101WithVideoID(root=args.data_path,
-                                              annotation_path=args.annotation_path,
-                                              frames_per_clip=args.frames,
-                                              step_between_clips=args.f_steps,
-                                              fold=1,
-                                              train=False,
-                                              transform=transforms_test)
+        if args.dataset == "UCF101":
+            transforms_test = transforms.Compose([
+                ConvertBHWCtoBCHW(),
+                transforms.ConvertImageDtype(torch.float32),
+                transforms.Resize((256, 340)),
+                transforms.CenterCrop((256, 256)),
+                transforms.Resize((224, 224)),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+            test_set = dataset_loader(
+                root=args.data_path,
+                annotation_path=args.annotation_path,
+                frames_per_clip=args.frames,
+                step_between_clips=args.f_steps,
+                fold=1,
+                train=False,
+                transform=transforms_test
+            )
+        else:
+            transforms_test = transforms.Compose([
+                transforms.PILToTensor(),
+                transforms.ConvertImageDtype(torch.float32),
+                transforms.Resize((256, 340)),
+                transforms.CenterCrop((256, 256)),
+                transforms.Resize((224, 224)),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+            test_set = dataset_loader(
+                data_path=args.data_path,
+                annotation_path=args.annotation_path,
+                frames_per_clip=args.frames,
+                downsample=1,
+                fold=1,
+                train=False,
+                transform=transforms_test
+            )
         if args.cache_dataset:
             print(f"Saving test dataset to {cache_path}")
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
@@ -174,8 +221,7 @@ def load_UCF101(args):
 
 
 def load_model(args):
-    if args.dataset == "UCF101":
-        return eval(f"{args.model_name}")(num_classes=101, cnf="ADD")
+    return eval(f"{args.model_name}")(num_classes=101, cnf="ADD")
 
 
 def get_logdir_name(args):
@@ -241,9 +287,9 @@ def train_one_epoch(model, criterion, optimizer, lr_scheduler, data_loader, devi
 #     metric_logger.add_meter("img/s", utils.SmoothedValue(window_size=10, fmt="{value}"))
     
     header = f"Epoch: [{epoch}]"
-    for i, (inputs, video_index, labels) in enumerate(metric_logger.log_every(data_loader, args.print_freq, header)):
+    for i, (inputs, labels) in enumerate(metric_logger.log_every(data_loader, args.print_freq, header)):
         start_time = time.time()
-        inputs, video_index, labels = inputs.to(device), video_index.to(device), labels.to(device)
+        inputs, labels = inputs.to(device), labels.to(device)
         if not args.not_recurrent:
             inputs = inputs.permute(1, 0, 2, 3, 4)
         
@@ -265,11 +311,16 @@ def train_one_epoch(model, criterion, optimizer, lr_scheduler, data_loader, devi
         if not args.not_recurrent:
             if not args.not_snn:
                 functional.reset_net(model)
+                if args.model_name == "s_cornet":
+                    if args.distributed:
+                        model.module.reset_state()
+                    else:
+                        model.reset_state()
             else:
                 if args.distributed:
-                    model.module.reset()
+                    model.module.reset_state()
                 else:
-                    model.reset()
+                    model.reset_state()
         
         acc = utils.accuracy(outputs, labels)
         batch_size = labels.size(0)
@@ -296,10 +347,9 @@ def evaluate(model, criterion, data_loader, device, args):
     num_processed_samples = 0
     
     with torch.inference_mode():
-        for i, (inputs, video_index, labels) in enumerate(metric_logger.log_every(data_loader, args.print_freq, header)):
+        for i, (inputs, labels) in enumerate(metric_logger.log_every(data_loader, args.print_freq, header)):
             start_time = time.time()
             inputs = inputs.to(device, non_blocking=True)
-            video_index = video_index.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
             if not args.not_recurrent:
                 inputs = inputs.permute(1, 0, 2, 3, 4)
@@ -312,11 +362,16 @@ def evaluate(model, criterion, data_loader, device, args):
             if not args.not_recurrent:
                 if not args.not_snn:
                     functional.reset_net(model)
+                    if args.model_name == "s_cornet":
+                        if args.distributed:
+                            model.module.reset_state()
+                        else:
+                            model.reset_state()
                 else:
                     if args.distributed:
-                        model.module.reset()
+                        model.module.reset_state()
                     else:
-                        model.reset()
+                        model.reset_state()
             
             acc = utils.accuracy(outputs, labels)
             batch_size = labels.size(0)
@@ -347,7 +402,8 @@ def evaluate(model, criterion, data_loader, device, args):
     return test_loss, test_acc
 
 
-def main(args):
+def main():
+    args = get_args()
     set_deterministic()
     utils.init_distributed_mode(args)
     print(args)
@@ -375,7 +431,7 @@ def main(args):
     
     print("Creating model")
     model = load_model(args)
-    if not args.not_snn:
+    if not args.not_snn and args.model_name != "s_cornet":
         set_step_mode(model, 'm', (ConvRecurrentContainer, ))
         set_backend(model, 'cupy', neuron.BaseNode, (ConvRecurrentContainer, ))
     if args.pretrained is not None:
@@ -459,5 +515,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    args = get_args()
-    main(args)
+    main()

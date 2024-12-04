@@ -162,3 +162,5 @@ cython_debug/
 # My ignore
 /similarity/results*
 /similarity/run.sh
+/train/logs*
+/train/run.sh

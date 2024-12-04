@@ -3,9 +3,10 @@
 from collections import OrderedDict
 import torch
 from torch import nn
+from spikingjelly.activation_based import base, layer, neuron, surrogate
 
 
-__all__ = ["cornet"]
+__all__ = ["s_cornet"]
 
 
 class Flatten(nn.Module):
@@ -28,7 +29,7 @@ class Identity(nn.Module):
         return x
 
 
-class CORblock_RT(nn.Module):
+class SpikCORblock_RT(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, out_shape=None):
         super().__init__()
@@ -37,15 +38,15 @@ class CORblock_RT(nn.Module):
         self.out_channels = out_channels
         self.out_shape = out_shape
 
-        self.conv_input = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
+        self.conv_input = layer.Conv2d(in_channels, out_channels, kernel_size=kernel_size,
                                     stride=stride, padding=kernel_size // 2)
-        self.norm_input = nn.GroupNorm(32, out_channels)
-        self.nonlin_input = nn.ReLU(inplace=True)
+        self.norm_input = layer.GroupNorm(32, out_channels)
+        self.nonlin_input = neuron.LIFNode(surrogate_function=surrogate.ATan(), detach_reset=True)
 
-        self.conv1 = nn.Conv2d(out_channels, out_channels,
+        self.conv1 = layer.Conv2d(out_channels, out_channels,
                                kernel_size=3, padding=1, bias=False)
-        self.norm1 = nn.GroupNorm(32, out_channels)
-        self.nonlin1 = nn.ReLU(inplace=True)
+        self.norm1 = layer.GroupNorm(32, out_channels)
+        self.nonlin1 = neuron.LIFNode(surrogate_function=surrogate.ATan(), detach_reset=True)
 
         self.output = Identity()  # for an easy access to this block's output
 
@@ -70,30 +71,30 @@ class CORblock_RT(nn.Module):
         output = state
         return output, state
 
-
-class R_CORnet_RT(nn.Module):
+    
+class SR_CORnet_RT(nn.Module):
 
     def __init__(self, num_classes=101, cnf=None):
         super().__init__()
         self.num_classes = num_classes
 
-        self.V1 = CORblock_RT(3, 64, kernel_size=7, stride=4, out_shape=56)
-        self.V2 = CORblock_RT(64, 128, stride=2, out_shape=28)
-        self.V4 = CORblock_RT(128, 256, stride=2, out_shape=14)
-        self.IT = CORblock_RT(256, 512, stride=2, out_shape=7)
+        self.V1 = SpikCORblock_RT(3, 64, kernel_size=7, stride=4, out_shape=56)
+        self.V2 = SpikCORblock_RT(64, 128, stride=2, out_shape=28)
+        self.V4 = SpikCORblock_RT(128, 256, stride=2, out_shape=14)
+        self.IT = SpikCORblock_RT(256, 512, stride=2, out_shape=7)
         self.decoder = nn.Sequential(OrderedDict([
-            ('avgpool', nn.AdaptiveAvgPool2d(1)),
+            ('avgpool', layer.AdaptiveAvgPool2d(1)),
             ('flatten', Flatten()),
-            ('linear', nn.Linear(512, num_classes))
+            ('linear', layer.Linear(512, num_classes))
         ]))
         
         self.states = {'V1': 0, 'V2': 0, 'V4': 0, 'IT': 0}
         self.final_outputs = {'V1': None, 'V2': None, 'V4': None, 'IT': None}
         
         for m in self.modules():
-            if isinstance(m, nn.Conv2d):
+            if isinstance(m, layer.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.GroupNorm):
+            elif isinstance(m, layer.GroupNorm):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
@@ -139,5 +140,5 @@ class R_CORnet_RT(nn.Module):
         self.final_outputs = {'V1': None, 'V2': None, 'V4': None, 'IT': None}
 
 
-def cornet(**kwargs):
-    return R_CORnet_RT(**kwargs)
+def s_cornet(**kwargs):
+    return SR_CORnet_RT(**kwargs)
