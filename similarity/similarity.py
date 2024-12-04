@@ -6,7 +6,7 @@ import numpy as np
 
 from dataset import NeuralDataset
 from visualmodel import VisualModel
-from metric import TSRSAMetric, RegMetric, STSRSAMetric
+from metric import TSRSAMetric, RegMetric
 from benchmark import MovieBenchmark
 from extraction import SNNStaticExtraction, SNNMovieExtraction, CNNStaticExtraction, CNNMovieExtraction
 
@@ -33,13 +33,12 @@ def preset_neural_dataset(args):
 def build_extraction(args):
     stimulus_name = f"stimulus_{args.neural_dataset}_224.pt"
     model_args = {}
-    _snn = True
+    _state = False
     _3d = False
     _checkpoint_args = False
     if args.train_dataset == "imagenet":
         if args.model in ['cornet_z', 'cornet_rt', 'cornet_s']:
             T = 1
-            _snn = False
             _checkpoint_args = True
             extraction_tool = CNNStaticExtraction
         else:
@@ -48,20 +47,19 @@ def build_extraction(args):
             model_args['cnf'] = "ADD"
             model_args['num_classes'] = 1000
     elif args.train_dataset == "ucf101":
-        if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc', 'cornet', 'lorafb_cnet18', 's_cornet']:
+        if args.model in ['cornet', 'resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc', 'lorafb_cnet18']:
             if args.neural_dataset == "allen_natural_scenes":
                 T = 4
                 extraction_tool = CNNStaticExtraction
             else:
                 T = 16
                 extraction_tool = CNNMovieExtraction
-            _snn = False
-            if args.model in ['resnet_1p_ar', 'resnet_2p_ar', 'resnet_1p_cpc', 'resnet_2p_cpc']:
+            if args.model in ['cornet', 'lorafb_cnet18']:
+                _state = True
+            else:
                 T = 5
                 _3d = True
                 _checkpoint_args = True
-            elif args.model in ['s_cornet']:
-                _snn = True
         else:
             if args.neural_dataset == "allen_natural_scenes":
                 T = 4
@@ -69,14 +67,17 @@ def build_extraction(args):
             else:
                 T = 16
                 extraction_tool = SNNMovieExtraction
-            model_args['cnf'] = "ADD"
-            model_args['num_classes'] = 101
+            if args.model in ['s_cornet']:
+                _state = True
+            else:
+                model_args['cnf'] = "ADD"
+                model_args['num_classes'] = 101
     extraction = extraction_tool(
         model_name=args.model,
         checkpoint_path=args.checkpoint_path,
         stimulus_path=os.path.join(args.stimulus_dir, stimulus_name),
         T=T,
-        _snn=_snn,
+        _state=_state,
         _3d=_3d,
         _checkpoint_args=_checkpoint_args,
         device=args.device,
@@ -90,8 +91,6 @@ def preset_metric(args):
         metric = TSRSAMetric()
     elif args.metric == "Regression":
         metric = RegMetric()
-    elif args.metric == "STSRSA":
-        metric = STSRSAMetric()
     return metric
 
 
@@ -123,7 +122,7 @@ def save_dir_preset(args):
 def get_args():
     import argparse
 
-    parser = argparse.ArgumentParser(description="Neural Representation Similarity")
+    parser = argparse.ArgumentParser(description="Neural Representation Similarity for Movie Stimuli")
 
     parser.add_argument("--model", default="lorafb_snet18", type=str, help="name of model for load")
     parser.add_argument("--model-name", default=None, type=str, help="name of model for save")
@@ -133,22 +132,22 @@ def get_args():
     parser.add_argument("--neural-dataset", default="allen_natural_movie_one", type=str, choices=["allen_natural_movie_one", "allen_natural_movie_three", "allen_natural_scenes"], help="name of neural dataset")
     parser.add_argument("--neural-dataset-dir", default="neural_dataset/", type=str, help="directory for storing neural dataset")
 
-    parser.add_argument("--metric", default="TSRSA", type=str, choices=["TSRSA", "Regression", "STSRSA"], help="name of similarity metric")
+    parser.add_argument("--metric", default="TSRSA", type=str, choices=["TSRSA", "Regression"], help="name of similarity metric")
 
     parser.add_argument("--stimulus-dir", default="stimulus/", type=str, help="directory for stimulus")
     parser.add_argument("--device", default="cuda:0", type=str, help="device for extracting features")
 
-    parser.add_argument("--trial-for-ablation", default=1, type=int, help="number of repetitions for the shuffled frame experiment or the noise image replacement experiment")
-    parser.add_argument("--shuffle", action="store_true", help="experiment for shuffled frame")
-    parser.add_argument("--replace", action="store_true", help="experiment for noise image replacement")
+    parser.add_argument("--trial-for-ablation", default=1, type=int, help="number of repetitions for the experiments of shuffling movie frames or replacing frames")
+    parser.add_argument("--shuffle", action="store_true", help="experiment of shuffling movie frames")
+    parser.add_argument("--replace", action="store_true", help="experiment of replacing frames")
     parser.add_argument("--replace-type", default="gaussian", type=str, choices=["gaussian", "uniform", "black", "static"], help="type of noise image for replacement")
-    parser.add_argument("--window", default=0, type=int, help="number of frames per window for the shuffled frame experiment or the noise image replacement experiment")
-    parser.add_argument("--best-layer", action="store_true", help="only conduct experiment for the best layer")
+    parser.add_argument("--window", default=0, type=int, help="number of frames per window for the experiments of shuffling movie frames or replacing frames")
+    parser.add_argument("--best-layer", action="store_true", help="only conduct experiments for the best layer")
 
-    parser.add_argument("--trial-for-clip", default=1, type=int, help="number of repetitions for experiments with different movie clips")
+    parser.add_argument("--trial-for-clip", default=1, type=int, help="number of repetitions for experiments of different movie clip lengths")
     parser.add_argument("--clip-len", default=0, type=int, help="length of movie clip")
 
-    parser.add_argument("--front-len", default=0, type=int, help="experiment for the front part of movie")
+    parser.add_argument("--front-len", default=0, type=int, help="length of the front part of movie")
 
     parser.add_argument("--output-dir", default="results/", help="directory to save results of representational similarity")
 
@@ -156,7 +155,12 @@ def get_args():
     return args
 
 
-def main(args):
+def main():
+    args = get_args()
+    assert (not args.shuffle) + (not args.replace) + (args.clip_len == 0) + (args.front_len == 0) >= 3
+    if args.model_name is None:
+        args.model_name = args.model
+
     extraction, args.T = build_extraction(args)
     with open(f"model_layers/{args.model}.json", 'r') as f:
         layers_info = json.load(f)
@@ -197,8 +201,4 @@ def main(args):
 
 
 if __name__=="__main__":
-    args = get_args()
-    assert (not args.shuffle) + (not args.replace) + (args.clip_len == 0) + (args.front_len == 0) >= 3
-    if args.model_name is None:
-        args.model_name = args.model
-    main(args)
+    main()

@@ -1,3 +1,5 @@
+## Reproduce from https://github.com/fangwei123456/Spike-Element-Wise-ResNet
+
 import torch
 import torch.nn as nn
 from spikingjelly.activation_based import layer, neuron, surrogate

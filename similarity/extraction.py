@@ -80,25 +80,27 @@ class Extraction:
         self.stimulus_change = True
 
     def hook_fn(self, module, inputs, outputs):
-        pass
+        if isinstance(outputs, tuple):
+            self.features.append(outputs[0].data.cpu())
+        else:
+            self.features.append(outputs.data.cpu())
 
     def layer_extraction(self, layer_name, layer_dims):
         pass
     
 
 class SNNStaticExtraction(Extraction):
-    def __init__(self, model_name, checkpoint_path, stimulus_path, T, _snn=True, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
+    def __init__(self, model_name, checkpoint_path, stimulus_path, T, _state=False, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
         model = self.load_model(model_name, checkpoint_path, _checkpoint_args, **kwargs)
-        set_step_mode(model, 'm', (ConvRecurrentContainer, ))
-        set_backend(model, 'cupy', neuron.BaseNode, (ConvRecurrentContainer, ))
+        if not _state:
+            set_step_mode(model, 'm', (ConvRecurrentContainer, ))
+            set_backend(model, 'cupy', neuron.BaseNode, (ConvRecurrentContainer, ))
 
         super().__init__(model, model_name, stimulus_path, device)
         self.T = T
+        self._state = _state
         self._mean = True
     
-    def hook_fn(self, module, inputs, outputs):
-        self.features.append(outputs.data.cpu())
-
     def layer_extraction(self, layer_name, layer_dims):
         if self.stimulus_change:
             self.build_dataloader(self.batch_size)
@@ -110,6 +112,8 @@ class SNNStaticExtraction(Extraction):
         
         self.model.eval()
         functional.reset_net(self.model)
+        if self._state:
+            self.model.reset_state()
         with torch.inference_mode():
             hook = eval(f"self.model.{layer_name}").register_forward_hook(self.hook_fn)
             n = 0
@@ -128,6 +132,8 @@ class SNNStaticExtraction(Extraction):
                 else:
                     extraction[n: n + bs] = features.transpose(0, 1)
                 functional.reset_net(self.model)
+                if self._state:
+                    self.model.reset_state()
                 n += bs
             hook.remove()
 
@@ -135,16 +141,15 @@ class SNNStaticExtraction(Extraction):
 
 
 class SNNMovieExtraction(Extraction):
-    def __init__(self, model_name, checkpoint_path, stimulus_path, T, _snn=True, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
+    def __init__(self, model_name, checkpoint_path, stimulus_path, T, _state=False, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
         model = self.load_model(model_name, checkpoint_path, _checkpoint_args, **kwargs)
-        set_step_mode(model, 'm', (ConvRecurrentContainer, ))
-        set_backend(model, 'cupy', neuron.BaseNode, (ConvRecurrentContainer, ))
+        if not _state:
+            set_step_mode(model, 'm', (ConvRecurrentContainer, ))
+            set_backend(model, 'cupy', neuron.BaseNode, (ConvRecurrentContainer, ))
 
         super().__init__(model, model_name, stimulus_path, device)
         self.T = T
-
-    def hook_fn(self, module, inputs, outputs):
-        self.features.append(outputs.data.cpu())
+        self._state = _state
 
     def layer_extraction(self, layer_name, layer_dims):
         if self.stimulus_change:
@@ -154,6 +159,8 @@ class SNNMovieExtraction(Extraction):
 
         self.model.eval()
         functional.reset_net(self.model)
+        if self._state:
+            self.model.reset_state()
         with torch.inference_mode():
             hook = eval(f"self.model.{layer_name}").register_forward_hook(self.hook_fn)
             n = 0
@@ -176,19 +183,13 @@ class SNNMovieExtraction(Extraction):
 
 
 class CNNStaticExtraction(Extraction):
-    def __init__(self, model_name, checkpoint_path, stimulus_path, T=1, _snn=False, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
+    def __init__(self, model_name, checkpoint_path, stimulus_path, T=1, _state=False, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
         model = self.load_model(model_name, checkpoint_path, _checkpoint_args, **kwargs)
         super().__init__(model, model_name, stimulus_path, device)
         self.T = T
-        self._snn = _snn
+        self._state = _state
         self._3d = _3d
     
-    def hook_fn(self, module, inputs, outputs):
-        if isinstance(outputs, tuple):
-            self.features.append(outputs[0].data.cpu())
-        else:
-            self.features.append(outputs.data.cpu())
-
     def layer_extraction(self, layer_name, layer_dims):
         if self.stimulus_change:
             self.build_dataloader(self.batch_size)
@@ -196,9 +197,7 @@ class CNNStaticExtraction(Extraction):
         extraction = torch.zeros([self.n_stimulus] + layer_dims, dtype=torch.float)
 
         self.model.eval()
-        if self.T > 1 and not self._3d:
-            if self._snn:
-                functional.reset_net(self.model)
+        if self._state:
             self.model.reset_state()
         with torch.inference_mode():
             hook = eval(f"self.model.{layer_name}").register_forward_hook(self.hook_fn)
@@ -207,26 +206,24 @@ class CNNStaticExtraction(Extraction):
                 inputs = inputs[0].to(self.device)
                 bs = len(inputs)
                 if self.T > 1:
-                    if self._3d:
-                        inputs = inputs.unsqueeze(2).repeat(1, 1, self.T, 1, 1)
-                    else:
+                    if self._state:
                         inputs = inputs.unsqueeze(0).repeat(self.T, 1, 1, 1, 1)
+                    elif self._3d:
+                        inputs = inputs.unsqueeze(2).repeat(1, 1, self.T, 1, 1)
 
                 self.features = []
                 self.model(inputs)
                 features = torch.stack(self.features, dim=0)
                 if self.T > 1:
-                    if self._3d:
-                        extraction[n: n + bs] = features.squeeze(0).mean(dim=2)
-                    else:
+                    if self._state:
                         if features.size(0) == 1:
                             features = features.squeeze(0)
                             extraction[n: n + bs] = features.view(bs, self.T, features.size(1), features.size(2), features.size(3)).mean(dim=1)
                         else:
                             extraction[n: n + bs] = features.mean(dim=0)
-                        if self._snn:
-                            functional.reset_net(self.model)
                         self.model.reset_state()
+                    elif self._3d:
+                        extraction[n: n + bs] = features.squeeze(0).mean(dim=2)
                 else:
                     extraction[n: n + bs] = features[-1]
                 n += bs
@@ -236,18 +233,12 @@ class CNNStaticExtraction(Extraction):
 
 
 class CNNMovieExtraction(Extraction):
-    def __init__(self, model_name, checkpoint_path, stimulus_path, T=1, _snn=False, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
+    def __init__(self, model_name, checkpoint_path, stimulus_path, T=1, _state=False, _3d=False, _checkpoint_args=False, device="cuda:0", **kwargs):
         model = self.load_model(model_name, checkpoint_path, _checkpoint_args, **kwargs)
         super().__init__(model, model_name, stimulus_path, device)
         self.T = T
-        self._snn = _snn
+        self._state = _state
         self._3d = _3d
-    
-    def hook_fn(self, module, inputs, outputs):
-        if isinstance(outputs, tuple):
-            self.features.append(outputs[0].data.cpu())
-        else:
-            self.features.append(outputs.data.cpu())
 
     def layer_extraction(self, layer_name, layer_dims):
         if self.stimulus_change:
@@ -256,9 +247,7 @@ class CNNMovieExtraction(Extraction):
         extraction = torch.zeros([self.n_stimulus] + layer_dims, dtype=torch.float)
 
         self.model.eval()
-        if not self._3d:
-            if self._snn:
-                functional.reset_net(self.model)
+        if self._state:
             self.model.reset_state()
         with torch.inference_mode():
             hook = eval(f"self.model.{layer_name}").register_forward_hook(self.hook_fn)
@@ -267,20 +256,20 @@ class CNNMovieExtraction(Extraction):
                 inputs = inputs[0].to(self.device)
                 bs = len(inputs)
                 ## Default of batch size is 1
-                if self._3d:
-                    inputs = inputs.unsqueeze(0).transpose(1, 2)
-                else:
+                if self._state:
                     inputs = inputs.unsqueeze(1)
+                elif self._3d:
+                    inputs = inputs.unsqueeze(0).transpose(1, 2)
 
                 self.features = []
                 self.model(inputs)
                 features = torch.stack(self.features, dim=0)
                 if features.size(0) == 1:
                     features = features.squeeze(0)
-                if self._3d:
-                    extraction[n: n + bs] = features.squeeze(0).transpose(0, 1)
-                else:
+                if self._state:
                     extraction[n: n + bs] = features.squeeze(1)
+                elif self._3d:
+                    extraction[n: n + bs] = features.squeeze(0).transpose(0, 1)
                 n += bs
             hook.remove()
 

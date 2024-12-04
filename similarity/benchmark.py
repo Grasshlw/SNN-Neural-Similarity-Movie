@@ -3,7 +3,7 @@ import time
 from tqdm import tqdm
 import torch
 import numpy as np
-from extraction import SNNStaticExtraction, SNNMovieExtraction
+from extraction import SNNStaticExtraction, CNNStaticExtraction
 
 
 class Benchmark:
@@ -131,7 +131,7 @@ class MovieBenchmark(Benchmark):
                 
                     if self.shuffle:
                         model_data, shuffle_index = visual_model[layer_index]
-                        if isinstance(visual_model.extraction, SNNStaticExtraction):
+                        if isinstance(visual_model.extraction, (SNNStaticExtraction, CNNStaticExtraction)):
                             no_first_frame_idx = self.no_first_frame_idx[shuffle_index]
                         else:
                             no_first_frame_idx = self.no_first_frame_idx
