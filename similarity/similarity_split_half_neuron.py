@@ -7,33 +7,54 @@ import numpy as np
 from tqdm import tqdm
 
 from dataset import NeuralDataset
-from metric import TSRSAMetric, RegMetric, STSRSAMetric
+from metric import TSRSAMetric, RegMetric
 
 
-def main(dataset_name, metric_name, clip_len=None):
+def get_args():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Neural Representation Similarity for Movie Stimuli")
+
+    parser.add_argument("--neural-dataset", default="allen_natural_movie_one", type=str, choices=["allen_natural_movie_one", "allen_natural_movie_three"], help="name of neural dataset")
+    parser.add_argument("--neural-dataset-dir", default="neural_dataset/", type=str, help="directory for storing neural dataset")
+
+    parser.add_argument("--metric", default="TSRSA", type=str, choices=["TSRSA", "Regression"], help="name of similarity metric")
+
+    parser.add_argument("--trial-for-clip", default=1, type=int, help="number of repetitions for experiments of different movie clip lengths")
+    parser.add_argument("--clip-len", default=0, type=int, help="length of movie clip")
+
+    parser.add_argument("--output-dir", default="results/", help="directory to save results of representational similarity")
+
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    args = get_args()
+    np.random.seed(2023)
+
     brain_areas = ['visp', 'visl', 'visrl', 'visal', 'vispm', 'visam']
     time_step = 1
     exclude = True
     threshold = 0.5
 
     neural_dataset = NeuralDataset(
-        dataset_name=dataset_name,
+        dataset_name=args.neural_dataset,
         brain_areas=brain_areas,
-        data_dir="/data/hlw20/neural-computational-model-source/neural_dataset",
+        data_dir=args.neural_dataset_dir,
         time_step=time_step,
         exclude=exclude,
         threshold=threshold
     )
     
-    if metric_name == "TSRSA":
+    if args.metric == "TSRSA":
         metric = TSRSAMetric()
-    elif metric_name == "Regression":
+    elif args.metric == "Regression":
         metric = RegMetric()
-    elif metric_name == "STSRSA":
-        metric = STSRSAMetric()
-    save_dir = os.path.join("results", metric_name, dataset_name, "neural")
+    save_dir = os.path.join("results", args.metric, args.neural_dataset, "neural")
+    os.makedirs(save_dir, exist_ok=True)
     
-    if clip_len is None:
+    if args.clip_len == 0:
         scores = np.zeros((100, len(brain_areas)))
         for area_index, brain_area in enumerate(brain_areas):
             neural_data = neural_dataset[area_index]
@@ -50,11 +71,11 @@ def main(dataset_name, metric_name, clip_len=None):
 
 
         ### for split-half-trial experiments, doesn't apply
-        # with open(os.path.join("/data/hlw20/neural-computational-model-source/neural_dataset", dataset_name, "1.pkl"), 'rb') as f:
+        # with open(os.path.join(args.neural_dataset_dir, args.neural_dataset, "1.pkl"), 'rb') as f:
         #     specimens_spikes_data = pickle.load(f)
-        # if dataset_name == "allen_natural_movie_one":
+        # if args.neural_dataset == "allen_natural_movie_one":
         #     num_stimulus = 900
-        # elif dataset_name == "allen_natural_movie_three":
+        # elif args.neural_dataset == "allen_natural_movie_three":
         #     num_stimulus = 3600
         # for area_index, area in enumerate(brain_areas):
         #     num_units = 0
@@ -87,27 +108,26 @@ def main(dataset_name, metric_name, clip_len=None):
         # print(np.mean(scores), np.mean(np.std(scores, axis=0) / np.sqrt(100)))
         # np.save(os.path.join(save_dir, "ceiling_half_trial.npy"), scores)
     else:
-        scores = np.zeros((10, 100, len(brain_areas)))
+        scores = np.zeros((args.trial_for_clip, 100, len(brain_areas)))
         for area_index, brain_area in enumerate(brain_areas):
             neural_data = neural_dataset[area_index]
             neural_data = neural_data[1:]
             num_stimuli = neural_data.shape[0]
             num_neurons = neural_data.shape[1]
             np.random.seed(2023)
-            start_index = np.random.choice(num_stimuli - clip_len + 1, size=10, replace=False)
-            end_index = start_index + clip_len
-            for i in tqdm(range(10)):
+            start_index = np.random.choice(num_stimuli - args.clip_len + 1, size=args.trial_for_clip, replace=False)
+            end_index = start_index + args.clip_len
+            for i in tqdm(range(args.trial_for_clip)):
                 for j in range(100):
                     random_index = np.random.permutation(num_neurons)
                     neural_data_1 = neural_data[start_index[i]: end_index[i], random_index[:num_neurons // 2]]
                     neural_data_2 = neural_data[start_index[i]: end_index[i], random_index[num_neurons // 2:]]
                     score = metric.score(neural_data_1, neural_data_2)
                     scores[i, j, area_index] = score
-            print(np.mean(scores[:, :, area_index]), np.std(scores[:, :, area_index]) / np.sqrt(100))
-        print(np.mean(scores))
-        np.save(os.path.join(save_dir, f"stimulus_clip_ceiling_half_neuron_{clip_len}.npy"), scores)
+            print(np.mean(scores[:, :, area_index]), np.std(scores[:, :, area_index]) / np.sqrt(1000))
+        print(np.mean(scores), np.mean(np.std(np.reshape(scores, (-1, 6)), axis=0) / np.sqrt(1000)))
+        np.save(os.path.join(save_dir, f"stimulus_clip_ceiling_half_neuron_{args.clip_len}.npy"), scores)
 
 
 if __name__=="__main__":
-    np.random.seed(2023)
-    main("allen_natural_movie_one", "TSRSA")
+    main()
